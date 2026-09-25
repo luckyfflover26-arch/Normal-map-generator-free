@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bump — Normal Map Generator</title>
+<style>
+  @font-face { font-family: 'system-mono'; src: local('JetBrains Mono'), local('Menlo'), local('Consolas'); }
+  :root{
+    --bg:#0b0c11;
+    --panel:#151723;
+    --panel2:#1b1e2c;
+    --line:#272b3d;
+    --text:#eceef4;
+    --muted:#8388a0;
+    --blue:#7c93ff;
+    --violet:#b98cff;
+    --green:#6ee7b7;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(124,147,255,0.10), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, rgba(185,140,255,0.08), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height:100vh;
+  }
+  .mono{ font-family:'JetBrains Mono','system-mono',ui-monospace,monospace; }
+
+  header{
+    padding:28px 24px 16px;
+    max-width:1180px;
+    margin:0 auto;
+  }
+  .eyebrow{
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--blue);
+    font-family:'JetBrains Mono',monospace;
+    margin-bottom:8px;
+  }
+  h1{
+    font-size:26px;
+    margin:0 0 6px;
+    font-weight:600;
+    letter-spacing:-0.01em;
+  }
+  h1 span{
+    background:linear-gradient(90deg, var(--blue), var(--violet));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  header p{
+    color:var(--muted);
+    font-size:14px;
+    margin:0;
+    max-width:560px;
+    line-height:1.5;
+  }
+
+  .layout{
+    max-width:1180px;
+    margin:0 auto;
+    padding:8px 24px 60px;
+    display:grid;
+    grid-template-columns:320px 1fr;
+    gap:20px;
+  }
+  @media (max-width:860px){
+    .layout{ grid-template-columns:1fr; }
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px;
+  }
+
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:10px;
+    padding:22px 14px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    color:var(--muted);
+    font-size:13px;
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--blue);
+    background:rgba(124,147,255,0.06);
+    color:var(--text);
+  }
+  .dropzone svg{ display:block; margin:0 auto 8px; opacity:0.7; }
+  input[type=file]{ display:none; }
+
+  .thumb-row{
+    display:flex; align-items:center; gap:10px; margin-top:12px;
+  }
+  .thumb-row img{
+    width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid var(--line);
+  }
+  .thumb-row .fname{ font-size:12px; color:var(--muted); word-break:break-all; }
+
+  .field{ margin-top:18px; }
+  .field label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; color:var(--muted); margin-bottom:8px;
+    font-family:'JetBrains Mono',monospace;
+    letter-spacing:0.01em;
+  }
+  .field label b{ color:var(--text); font-weight:600; }
+  input[type=range]{
+    width:100%; appearance:none; height:4px; border-radius:2px;
+    background:linear-gradient(90deg, var(--blue), var(--violet));
+    outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    appearance:none; width:15px; height:15px; border-radius:50%;
+    background:#fff; border:2px solid var(--violet); cursor:pointer;
+  }
+
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:14px; font-size:13px;
+  }
+  .toggle-row .label{ color:var(--text); }
+  .toggle-row .sub{ display:block; font-size:11px; color:var(--muted); margin-top:1px; }
+  .switch{
+    position:relative; width:38px; height:22px; flex:none;
+  }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider-toggle{
+    position:absolute; cursor:pointer; inset:0;
+    background:var(--panel2); border:1px solid var(--line);
+    border-radius:22px; transition:.15s;
+  }
+  .slider-toggle:before{
+    content:""; position:absolute; height:16px; width:16px; left:2px; top:2px;
+    background:var(--muted); border-radius:50%; transition:.15s;
+  }
+  input:checked + .slider-toggle{ background:rgba(124,147,255,0.25); border-color:var(--blue); }
+  input:checked + .slider-toggle:before{ transform:translateX(16px); background:var(--blue); }
+
+  .divider{ height:1px; background:var(--line); margin:18px 0; }
+
+  .btn{
+    width:100%; padding:11px 16px; border-radius:9px; border:none;
+    font-size:13px; font-weight:600; cursor:pointer;
+    font-family:inherit; letter-spacing:0.01em;
+    transition:transform .1s, opacity .15s;
+  }
+  .btn:active{ transform:scale(0.98); }
+  .btn-primary{
+    background:linear-gradient(90deg, var(--blue), var(--violet));
+    color:#0b0c11;
+  }
+  .btn-primary:disabled{ opacity:0.35; cursor:not-allowed; }
+  .btn-ghost{
+    background:transparent; border:1px solid var(--line); color:var(--text); margin-top:8px;
+  }
+
+  .hint{ font-size:11.5px; color:var(--muted); margin-top:14px; line-height:1.5; }
+  .hint code{ color:var(--green); font-family:'JetBrains Mono',monospace; }
+
+  /* Preview area */
+  .preview-panel{ display:flex; flex-direction:column; min-height:520px; }
+  .tabs{ display:flex; gap:4px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab{
+    padding:7px 13px; border-radius:7px; font-size:12.5px; cursor:pointer;
+    color:var(--muted); border:1px solid transparent; user-select:none;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .tab.active{
+    background:var(--panel2); color:var(--text); border-color:var(--line);
+  }
+  .canvas-stage{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    background:
+      repeating-conic-gradient(#1c1e2a 0% 25%, #16182200 0% 50%) 50% / 20px 20px;
+    background-color:#101220;
+    border-radius:10px; border:1px solid var(--line);
+    position:relative; overflow:hidden; min-height:360px;
+  }
+  .canvas-stage canvas{
+    max-width:100%; max-height:440px; image-rendering:pixelated;
+    display:none;
+  }
+  .canvas-stage canvas.show{ display:block; }
+  .empty-state{
+    color:var(--muted); font-size:13px; text-align:center; padding:20px;
+  }
+  .empty-state .mono{ font-size:11px; opacity:0.7; }
+
+  /* relight pad */
+  .relight-wrap{ display:none; }
+  .relight-wrap.show{ display:flex; }
+  .relight-row{
+    display:flex; gap:18px; align-items:center; margin-top:14px; flex-wrap:wrap;
+  }
+  .light-pad{
+    width:74px; height:74px; border-radius:50%;
+    background:radial-gradient(circle at center, var(--panel2), #0c0d14);
+    border:1px solid var(--line); position:relative; cursor:grab; flex:none;
+  }
+  .light-pad .dot{
+    width:11px; height:11px; border-radius:50%;
+    background:linear-gradient(135deg,var(--blue),var(--violet));
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    box-shadow:0 0 8px rgba(124,147,255,0.8);
+  }
+  .relight-note{ font-size:11.5px; color:var(--muted); line-height:1.5; max-width:280px; }
+
+  footer{
+    text-align:center; color:var(--muted); font-size:11px; padding:0 24px 30px;
+    font-family:'JetBrains Mono',monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">// texture utility</div>
+  <h1>Turn any image into a <span>normal map</span></h1>
+  <p>Drop in a photo or texture, tune the depth, and export a normal map ready to plug into Blender's Principled BSDF. Everything runs locally in your browser — nothing is uploaded.</p>
+</header>
+
+<div class="layout">
+  <div class="panel controls">
+    <div class="dropzone" id="dropzone">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8388a0" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+      <div id="dz-text">Drop an image, or tap to choose one</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div class="thumb-row" id="thumbRow" style="display:none;">
+      <img id="thumbImg" alt="">
+      <div class="fname mono" id="fname"></div>
+    </div>
+
+    <div class="field">
+      <label><span>Strength</span> <b id="strengthVal">8</b></label>
+      <input type="range" id="strength" min="1" max="30" value="8" step="1">
+    </div>
+
+    <div class="field">
+      <label><span>Smoothing</span> <b id="blurVal">0</b></label>
+      <input type="range" id="blur" min="0" max="4" value="0" step="1">
+    </div>
+
+    <div class="toggle-row">
+      <div>
+        <div class="label">Seamless edges</div>
+        <span class="sub">wraps sampling for tiling textures</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="tileable">
+        <span class="slider-toggle"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <div>
+        <div class="label">Invert green (DirectX)</div>
+        <span class="sub">Blender default is OFF (OpenGL)</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="invertY">
+        <span class="slider-toggle"></span>
+      </label>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="btn btn-primary" id="downloadBtn" disabled>Download normal map</button>
+    <button class="btn btn-ghost" id="downloadHeight" disabled>Download height map</button>
+
+    <div class="hint">
+      In Blender: add an <code>Image Texture</code> node with this file, set colorspace to <code>Non-Color</code>, feed it into a <code>Normal Map</code> node, then into your Principled BSDF's Normal input.
+    </div>
+  </div>
+
+  <div class="panel preview-panel">
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="source">Source</div>
+      <div class="tab" data-tab="height">Height</div>
+      <div class="tab" data-tab="normal">Normal</div>
+      <div class="tab" data-tab="relight">Relit preview</div>
+    </div>
+    <div class="canvas-stage" id="stage">
+      <div class="empty-state" id="emptyState">
+        No image loaded yet<br><span class="mono">waiting for input →</span>
+      </div>
+      <canvas id="cSource"></canvas>
+      <canvas id="cHeight"></canvas>
+      <canvas id="cNormal"></canvas>
+      <canvas id="cRelight"></canvas>
+    </div>
+    <div class="relight-wrap" id="relightWrap">
+      <div class="relight-row">
+        <div class="light-pad" id="lightPad"><div class="dot" id="lightDot"></div></div>
+        <div class="relight-note">Drag the dot to move the light and check how the bump reads before you export. This uses the normal map directly — the same math Blender applies at render time.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>runs entirely client-side · no files leave your device</footer>
+
+<script>
+(() => {
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const dzText = document.getElementById('dz-text');
+  const thumbRow = document.getElementById('thumbRow');
+  const thumbImg = document.getElementById('thumbImg');
+  const fname = document.getElementById('fname');
+  const emptyState = document.getElementById('emptyState');
+
+  const strengthEl = document.getElementById('strength');
+  const strengthVal = document.getElementById('strengthVal');
+  const blurEl = document.getElementById('blur');
+  const blurVal = document.getElementById('blurVal');
+  const tileableEl = document.getElementById('tileable');
+  const invertYEl = document.getElementById('invertY');
+
+  const downloadBtn = document.getElementById('downloadBtn');
+  const downloadHeightBtn = document.getElementById('downloadHeight');
+
+  const cSource = document.getElementById('cSource');
+  const cHeight = document.getElementById('cHeight');
+  const cNormal = document.getElementById('cNormal');
+  const cRelight = document.getElementById('cRelight');
+  const relightWrap = document.getElementById('relightWrap');
+  const lightPad = document.getElementById('lightPad');
+  const lightDot = document.getElementById('lightDot');
+
+  const tabs = document.querySelectorAll('.tab');
+  const canvasMap = { source:cSource, height:cHeight, normal:cNormal, relight:cRelight };
+
+  const MAX_DIM = 1536;
+
+  let W = 0, H = 0;
+  let heightData = null;   // Float32Array, grayscale 0..1
+  let normalX = null, normalY = null, normalZ = null; // Float32Array
+  let lightAngle = { x: -0.5, y: -0.5 }; // normalized -1..1
+
+  strengthVal.textContent = strengthEl.value;
+  blurVal.textContent = blurEl.value;
+  strengthEl.addEventListener('input', () => { strengthVal.textContent = strengthEl.value; if (heightData) process(); });
+  blurEl.addEventListener('input', () => { blurVal.textContent = blurEl.value; if (heightData) process(); });
+  tileableEl.addEventListener('change', () => { if (heightData) process(); });
+  invertYEl.addEventListener('change', () => { if (heightData) { computeNormals(); drawNormal(); drawRelight(); } });
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    const which = t.dataset.tab;
+    Object.entries(canvasMap).forEach(([k, c]) => c.classList.toggle('show', k === which));
+    relightWrap.classList.toggle('show', which === 'relight');
+  }));
+
+  function loadFile(file) {
+    if (!file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+      W = Math.max(1, Math.round(w * scale));
+      H = Math.max(1, Math.round(h * scale));
+
+      [cSource, cHeight, cNormal, cRelight].forEach(c => { c.width = W; c.height = H; });
+
+      const sctx = cSource.getContext('2d');
+      sctx.drawImage(img, 0, 0, W, H);
+
+      emptyState.style.display = 'none';
+      cSource.classList.add('show');
+      thumbRow.style.display = 'flex';
+      thumbImg.src = url;
+      fname.textContent = file.name + '  ·  ' + W + '×' + H;
+      dzText.textContent = 'Drop a different image to replace it';
+
+      downloadBtn.disabled = false;
+      downloadHeightBtn.disabled = false;
+
+      computeHeight(sctx.getImageData(0, 0, W, H));
+      process();
+    };
+    img.src = url;
+  }
+
+  function computeHeight(imgData) {
+    const d = imgData.data;
+    heightData = new Float32Array(W * H);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      // luminance
+      heightData[p] = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) / 255;
+    }
+  }
+
+  function idx(x, y) {
+    if (tileableEl.checked) {
+      x = ((x % W) + W) % W;
+      y = ((y % H) + H) % H;
+    } else {
+      x = Math.min(W - 1, Math.max(0, x));
+      y = Math.min(H - 1, Math.max(0, y));
+    }
+    return y * W + x;
+  }
+
+  function process() {
+    let src = heightData;
+    const blurAmt = parseInt(blurEl.value, 10);
+    if (blurAmt > 0) {
+      src = boxBlur(heightData, blurAmt);
+    }
+    workingHeight = src;
+    drawHeight(src);
+    computeNormalsFrom(src);
+    drawNormal();
+    drawRelight();
+  }
+
+  let workingHeight = null;
+
+  function boxBlur(src, radius) {
+    const out = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        let sum = 0, count = 0;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            sum += src[idx(x + dx, y + dy)];
+            count++;
+          }
+        }
+        out[y * W + x] = sum / count;
+      }
+    }
+    return out;
+  }
+
+  function drawHeight(src) {
+    const ctx = cHeight.getContext('2d');
+    const imgData = ctx.createImageData(W, H);
+    const d = imgData.data;
+    for (let p = 0; p < src.length; p++) {
+      const v = Math.round(src[p] * 255);
+      d[p*4] = v; d[p*4+1] = v; d[p*4+2] = v; d[p*4+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  function computeNormalsFrom(src) {
+    const strength = parseFloat(strengthEl.value);
+    normalX = new Float32Array(W * H);
+    normalY = new Float32Array(W * H);
+    normalZ = new Float32Array(W * H);
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const tl = src[idx(x-1,y-1)], t = src[idx(x,y-1)], tr = src[idx(x+1,y-1)];
+        const l  = src[idx(x-1,y)],                          r  = src[idx(x+1,y)];
+        const bl = src[idx(x-1,y+1)], b = src[idx(x,y+1)], br = src[idx(x+1,y+1)];
+
+        const gx = (tr + 2*r + br) - (tl + 2*l + bl);
+        const gy = (bl + 2*b + br) - (tl + 2*t + tr);
+
+        let nx = -gx * strength;
+        let ny = -gy * strength;
+        if (invertYEl.checked) ny = -ny;
+        let nz = 1.0;
+
+        const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
+        const p = y * W + x;
+        normalX[p] = nx / len;
+        normalY[p] = ny / len;
+        normalZ[p] = nz / len;
+      }
+    }
+  }
+  function computeNormals(){ if (workingHeight) computeNormalsFrom(workingHeight); }
+
+  function drawNormal() {
+    const ctx = cNormal.getContext('2d');
+    const imgData = ctx.createImageData(W, H);
+    const d = imgData.data;
+    for (let p = 0; p < normalX.length; p++) {
+      d[p*4]   = Math.round((normalX[p] * 0.5 + 0.5) * 255);
+      d[p*4+1] = Math.round((normalY[p] * 0.5 + 0.5) * 255);
+      d[p*4+2] = Math.round((normalZ[p] * 0.5 + 0.5) * 255);
+      d[p*4+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  function drawRelight() {
+    const ctx = cRelight.getContext('2d');
+    const imgData = ctx.createImageData(W, H);
+    const d = imgData.data;
+    let lx = lightAngle.x, ly = lightAngle.y;
+    let lz = Math.sqrt(Math.max(0, 1 - lx*lx - ly*ly));
+    const llen = Math.sqrt(lx*lx + ly*ly + lz*lz) || 1;
+    lx /= llen; ly /= llen; lz /= llen;
+
+    for (let p = 0; p < normalX.length; p++) {
+      const dot = normalX[p]*lx + normalY[p]*ly + normalZ[p]*lz;
+      const shade = Math.max(0, dot);
+      const v = Math.round(Math.pow(shade, 1.0) * 255);
+      d[p*4] = v; d[p*4+1] = v; d[p*4+2] = v; d[p*4+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  // light pad drag
+  let dragging = false;
+  function setLightFromEvent(e) {
+    const rect = lightPad.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    let dx = (clientX - cx) / (rect.width/2);
+    let dy = (clientY - cy) / (rect.height/2);
+    const len = Math.sqrt(dx*dx + dy*dy);
+    if (len > 1) { dx /= len; dy /= len; }
+    lightAngle = { x: dx, y: dy };
+    lightDot.style.left = (50 + dx*33) + '%';
+    lightDot.style.top = (50 + dy*33) + '%';
+    if (normalX) drawRelight();
+  }
+  lightPad.addEventListener('mousedown', e => { dragging = true; setLightFromEvent(e); });
+  window.addEventListener('mousemove', e => { if (dragging) setLightFromEvent(e); });
+  window.addEventListener('mouseup', () => dragging = false);
+  lightPad.addEventListener('touchstart', e => { dragging = true; setLightFromEvent(e); });
+  window.addEventListener('touchmove', e => { if (dragging) setLightFromEvent(e); });
+  window.addEventListener('touchend', () => dragging = false);
+  // init dot position
+  lightDot.style.left = (50 + lightAngle.x*33) + '%';
+  lightDot.style.top = (50 + lightAngle.y*33) + '%';
+
+  function download(canvas, name) {
+    const link = document.createElement('a');
+    link.download = name;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+  downloadBtn.addEventListener('click', () => download(cNormal, 'normal_map.png'));
+  downloadHeightBtn.addEventListener('click', () => download(cHeight, 'height_map.png'));
+})();
+</script>
+</body>
+</html>
